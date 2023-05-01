@@ -47,7 +47,6 @@ export const rateLimiterByIP = async (
   );
 
   if (totalWindowRequestsCount >= MAX_WINDOW_REQUEST_COUNT) {
-    console.log("here1")
     invalidTraffic(
       `You have exceeded the ${MAX_WINDOW_REQUEST_COUNT} requests in ${WINDOW_SIZE_IN_MINUTES} minute limit!`,
       res

@@ -5,6 +5,8 @@ import todoRouter from './routes/todo.router';
 import userRouter from './routes/user.router';
 import { globalAppRateLimiter, rateLimiterByIP } from './utils/redis.utils';
 import auth from './middlewares/auth.middleware';
+import swaggerUi from 'swagger-ui-express';
+const swaggerJson = require('./utils/swagger.json');
 
 const app = express();
 const router = express.Router();
@@ -17,6 +19,7 @@ app
   .use(corsFunction)
   .use(express.json())
   .use(express.urlencoded({ extended: true }))
+  .use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerJson))
   .use("/users",userRouter)
   .use("/todos",auth,todoRouter)
   .use('/health', (_req: Request, res: Response) => {

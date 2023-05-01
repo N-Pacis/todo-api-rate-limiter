@@ -20,7 +20,6 @@ export const createTodo = async (req: any, res: Response) => {
 
 export const getMyTodos = async (req: any, res: Response) => {
   try {
-    console.log("here")
     let todos = await TodoModel.findAll({
       where: {created_by: req.user.id },
     });
