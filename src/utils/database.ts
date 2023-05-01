@@ -1,12 +1,15 @@
 import { db_host, db_name, db_user, db_password } from './config';
 import { Sequelize } from 'sequelize';
 
-const sequelize = new Sequelize({
-  dialect: "postgres",
+const sequelize = new Sequelize(db_name, db_user, db_password, {
   host: db_host,
-  database: db_name,
-  username: db_user,
-  password: db_password
+  dialect: 'postgres',
+  dialectOptions: {
+    ssl: {
+      require: true,
+      rejectUnauthorized: false
+    }
+  }
 });
 
 async function connectDB() {
