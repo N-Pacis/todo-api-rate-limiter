@@ -21,7 +21,7 @@ Moreover, to ensure the rate limiting mechanism is effective even on a distribut
     <a href="#">
         <img
             alt="Pacis"
-            src="https://avatars.githubusercontent.com/u/74002896?s=120&v=4"
+            src="https://avatars.githubusercontent.com/u/74002896?v=4"
             width="150">
     </a>
 </div>
