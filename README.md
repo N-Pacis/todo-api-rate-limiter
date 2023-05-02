@@ -8,13 +8,11 @@ Moreover, to ensure the rate limiting mechanism is effective even on a distribut
     
     - Open the terminal and navigate to the directory where the cloned project is located
     
-    - open your terminal and run "npm install"
+    - open your terminal and run "yarn"
             
-    - open your terminal and run "npm start"
+    - open your terminal and run "yarn start"
     
     - open your browser and visit "localhost:5000/api-docs"
-    
-### Visit the [Todo api rate limiter hosted online](http://todo-api-rate-limiter.onrender.com/api-docs) In order to ease the process of installing and running the project locally you can simply visit the hosted project
 
 ## Developed By 💻NKUBITO Pacis👨‍💻
 <div align="center">

@@ -20,58 +20,54 @@ if (process.env.ENV == "DEV") {
   });
 }
 
-export const rateLimiterByIP = async (
-  req: Request,
+export const rateLimiterByIp = async (
+  req: any,
   res: Response,
   next: NextFunction
 ) => {
-  const WINDOW_SIZE_IN_MINUTES = 1;
+  const WINDOW_SIZE_IN_SECONDS = 60;
   const MAX_WINDOW_REQUEST_COUNT = 3;
-  const WINDOW_LOG_INTERVAL_IN_SECONDS = 10;
   if (!redisClient.isOpen) await redisClient.connect();
 
-  const record = await redisClient.get(req.ip);
-  const currentRequestTime = moment();
+  const ip = req.ip;
+  const record = await redisClient.get(`address:${ip}`);
+  const currentTimestamp = moment().unix();
   const data = record
     ? JSON.parse(record)
-    : [{ requestTimeStamp: currentRequestTime.unix(), requestCount: 0 }];
-  const windowStartTimestamp = moment()
-    .subtract(WINDOW_SIZE_IN_MINUTES, "minutes")
-    .unix();
+    : [{ timestamp: currentTimestamp, requestCount: 0 }];
+  const windowStartTimestamp = currentTimestamp - WINDOW_SIZE_IN_SECONDS;
   const requestsWithinWindow = data.filter(
-    (entry: any) => entry.requestTimeStamp > windowStartTimestamp
+    (entry: any) => entry.timestamp > windowStartTimestamp
   );
   const totalWindowRequestsCount = requestsWithinWindow.reduce(
     (accumulator: any, entry: any) => accumulator + entry.requestCount,
     0
   );
 
+
   if (totalWindowRequestsCount >= MAX_WINDOW_REQUEST_COUNT) {
     invalidTraffic(
-      `You have exceeded the ${MAX_WINDOW_REQUEST_COUNT} requests in ${WINDOW_SIZE_IN_MINUTES} minute limit!`,
+      `You have exceeded the ${MAX_WINDOW_REQUEST_COUNT} requests in ${WINDOW_SIZE_IN_SECONDS} second limit!`,
       res
     );
     return;
   }
 
   const lastRequestLog = data[data.length - 1];
-  const potentialCurrentWindowIntervalStartTimeStamp = currentRequestTime
-    .subtract(WINDOW_LOG_INTERVAL_IN_SECONDS, "seconds")
-    .unix();
+  const potentialCurrentWindowIntervalStartTimeStamp =
+    currentTimestamp - (WINDOW_SIZE_IN_SECONDS - 1);
 
-  if (
-    lastRequestLog.requestTimeStamp >
-    potentialCurrentWindowIntervalStartTimeStamp
-  ) {
+  if (lastRequestLog.timestamp > potentialCurrentWindowIntervalStartTimeStamp) {
     lastRequestLog.requestCount++;
     data[data.length - 1] = lastRequestLog;
   } else {
-    data.push({ requestTimeStamp: currentRequestTime.unix(), requestCount: 1 });
+    data.push({ timestamp: currentTimestamp, requestCount: 1 });
   }
 
-  await redisClient.set(req.ip, JSON.stringify(data));
+  await redisClient.set(`address:${ip}`, JSON.stringify(data));
   next();
 };
+
 
 export const monthlyRateLimiterByUser = async (
   req: any,
@@ -83,7 +79,7 @@ export const monthlyRateLimiterByUser = async (
     return;
   }
   const WINDOW_SIZE_IN_MONTHS = 1;
-  const MAX_MONTHLY_REQUEST_COUNT = 20;
+  const MAX_MONTHLY_REQUEST_COUNT = 40;
   if (!redisClient.isOpen) await redisClient.connect();
 
   const userId = req.user?.id;
@@ -125,6 +121,7 @@ export const monthlyRateLimiterByUser = async (
   await redisClient.set(`user:${userId}`, JSON.stringify(data));
   next();
 };
+
 export const globalAppRateLimiter = async (
   req: Request,
   res: Response,
@@ -136,21 +133,42 @@ export const globalAppRateLimiter = async (
 
   if (!redisClient.isOpen) await redisClient.connect();
 
-  const currentRequestTime = moment();
-  const record = await redisClient.get(`app-rate-limiter:${currentRequestTime.minute()}`);
-  const data = record
-    ? JSON.parse(record)
-    : [{ requestTimeStamp: currentRequestTime.unix(), requestCount: 0 }];
-  const windowStartTimestamp = moment()
-    .subtract(WINDOW_SIZE_IN_MINUTES, "minutes")
-    .unix();
-  const requestsWithinWindow = data.filter(
-    (entry: any) => entry.requestTimeStamp > windowStartTimestamp
-  );
-  const totalWindowRequestsCount = requestsWithinWindow.reduce(
-    (accumulator: any, entry: any) => accumulator + entry.requestCount,
-    0
-  );
+  const appRateLimiterCache = new Map<
+    string,
+    { requestTimeStamp: number; requestCount: number }[]
+  >();
+
+  const currentRequestTime = moment().unix();
+  const windowStartTimestamp = currentRequestTime - WINDOW_SIZE_IN_MINUTES * 60;
+
+  let requestsWithinWindow: {
+    requestTimeStamp: number;
+    requestCount: number;
+  }[] = [];
+  let totalWindowRequestsCount = 0;
+  const cacheKey = `app-rate-limiter:${Math.floor(currentRequestTime / 60)}`;
+
+  if (appRateLimiterCache.has(cacheKey)) {
+    requestsWithinWindow = appRateLimiterCache
+      .get(cacheKey)!
+      .filter((entry) => entry.requestTimeStamp > windowStartTimestamp);
+    totalWindowRequestsCount = requestsWithinWindow.reduce(
+      (acc, entry) => acc + entry.requestCount,
+      0
+    );
+  } else {
+    const redisRecord = await redisClient.get(cacheKey);
+    if (redisRecord) {
+      const redisData = JSON.parse(redisRecord);
+      requestsWithinWindow = redisData.filter(
+        (entry: any) => entry.requestTimeStamp > windowStartTimestamp
+      );
+      totalWindowRequestsCount = requestsWithinWindow.reduce(
+        (acc, entry) => acc + entry.requestCount,
+        0
+      );
+    }
+  }
 
   if (totalWindowRequestsCount >= MAX_WINDOW_REQUEST_COUNT) {
     invalidTraffic(
@@ -160,28 +178,34 @@ export const globalAppRateLimiter = async (
     return;
   }
 
-  const lastRequestLog = data[data.length - 1];
-  const potentialCurrentWindowIntervalStartTimeStamp = currentRequestTime
-    .subtract(WINDOW_LOG_INTERVAL_IN_SECONDS, "seconds")
-    .unix();
+  let lastRequestLog: { requestTimeStamp: number; requestCount: number } = {
+    requestTimeStamp: 0,
+    requestCount: 0,
+  };
+  if (requestsWithinWindow.length > 0) {
+    lastRequestLog = requestsWithinWindow[requestsWithinWindow.length - 1];
+  }
 
+  const potentialCurrentWindowIntervalStartTimeStamp =
+    currentRequestTime - WINDOW_LOG_INTERVAL_IN_SECONDS;
   if (
     lastRequestLog.requestTimeStamp >
     potentialCurrentWindowIntervalStartTimeStamp
   ) {
     lastRequestLog.requestCount++;
-    data[data.length - 1] = lastRequestLog;
+    requestsWithinWindow[requestsWithinWindow.length - 1] = lastRequestLog;
   } else {
-    data.push({ requestTimeStamp: currentRequestTime.unix(), requestCount: 1 });
+    requestsWithinWindow.push({
+      requestTimeStamp: currentRequestTime,
+      requestCount: 1,
+    });
   }
 
-  await redisClient.set(
-    `app-rate-limiter:${currentRequestTime.minute()}`,
-    JSON.stringify(data),
-    {
-      EX: WINDOW_SIZE_IN_MINUTES * 60,
-    }
-  );
+  appRateLimiterCache.set(cacheKey, requestsWithinWindow);
+
+  await redisClient.set(cacheKey, JSON.stringify(requestsWithinWindow), {
+    EX: WINDOW_SIZE_IN_MINUTES * 60,
+  });
 
   next();
 };
