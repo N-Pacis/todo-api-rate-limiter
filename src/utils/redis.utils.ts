@@ -3,6 +3,11 @@ import moment from "moment";
 import { createClient } from "redis";
 import { invalidTraffic } from "./api.response";
 
+const WINDOW_LOG_INTERVAL_IN_SECONDS = 10;
+const WINDOW_SIZE_IN_MONTHS = 1;
+const WINDOW_SIZE_IN_SECONDS = 60;
+const WINDOW_SIZE_IN_MINUTES = 1;
+
 if (process.env.ENV == "DEV") {
   const url = process.env.REDIS_DEV_URL;
   var redisClient = createClient({
@@ -25,8 +30,7 @@ export const rateLimiterByIp = async (
   res: Response,
   next: NextFunction
 ) => {
-  const WINDOW_SIZE_IN_SECONDS = 60;
-  const MAX_WINDOW_REQUEST_COUNT = 3;
+  const MAX_WINDOW_REQUEST_COUNT = process.env.USER_MAX_REQUESTS_PER_MINUTE || 1;
   if (!redisClient.isOpen) await redisClient.connect();
 
   const ip = req.ip;
@@ -78,8 +82,8 @@ export const monthlyRateLimiterByUser = async (
     next();
     return;
   }
-  const WINDOW_SIZE_IN_MONTHS = 1;
-  const MAX_MONTHLY_REQUEST_COUNT = 40;
+  const MAX_MONTHLY_REQUEST_COUNT = process.env.USER_MAX_REQUESTS_MONTHLY || 1;
+
   if (!redisClient.isOpen) await redisClient.connect();
 
   const userId = req.user?.id;
@@ -127,9 +131,7 @@ export const globalAppRateLimiter = async (
   res: Response,
   next: NextFunction
 ) => {
-  const WINDOW_SIZE_IN_MINUTES = 1;
-  const MAX_WINDOW_REQUEST_COUNT = 50;
-  const WINDOW_LOG_INTERVAL_IN_SECONDS = 10;
+  const MAX_WINDOW_REQUEST_COUNT = Number(process.env.APP_MAX_REQUESTS_PER_MINUTE) || 1;
 
   if (!redisClient.isOpen) await redisClient.connect();
 

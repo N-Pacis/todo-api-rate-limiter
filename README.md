@@ -13,6 +13,8 @@ Moreover, to ensure the rate limiting mechanism is effective even on a distribut
     - open your terminal and run "yarn start"
     
     - open your browser and visit "localhost:5000/api-docs"
+    
+### Visit the [Todo Api Rate Limiter System Design Presentation](https://docs.google.com/presentation/d/1ExfHCndhTFGWdcvVtXkRW4Te9j6k9qVkq0LD4p2DNx0/edit?usp=sharing) In this presentation, I explained in details how this application works and especially how the rate limiting mechanism works.
 
 ## Developed By 💻NKUBITO Pacis👨‍💻
 <div align="center">
